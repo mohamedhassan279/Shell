@@ -6,7 +6,7 @@
 #include <sys/wait.h>
 
 #define MAX_LENGTH 1000
-#define MAX_PAR 500
+#define MAX_PAR 100
 #define LOG_FILE "/home/mohamed/CLionProjects/OSlab1/log_file.txt"
 
 #define GREEN "\x1b[32m"
@@ -48,50 +48,93 @@ void write_to_log_file(const char *msg) {
     fprintf(log_file, "%s", msg);
     fclose(log_file);
 }
+
 void on_child_exit () {
     reap_child_zombie();
     write_to_log_file("Child process was terminated\n");
 }
 
-void setup_environment(){  // finished
+// set the home as default
+void setup_environment(){
     chdir(getenv("HOME"));
 }
 
-char *replace (char *original, char *replaced, char *replacement) {
-    if (!replacement) {
-        replacement = "";
+// function used to replace $x with the value of x
+char *replace (char *original, int foundAt) {
+    char variable[MAX_LENGTH]; int cvar = 0;
+    char res[MAX_LENGTH]; int cres = 0;
+    for (int i = 0; i < foundAt; i++) {
+        res[cres++] = original[i];
     }
-    char *result, *ptr, *tmp;
-    int len_replaced = strlen(replaced), len_replacement = strlen(replacement);
-    int len, counter;
-    ptr = original;
-    tmp = strstr(ptr, replaced);
-    for (counter = 0; tmp; counter++) {
-        ptr = tmp + len_replaced;
-        tmp = strstr(ptr, replaced);
+    for (int i = foundAt + 1; i < strlen(original); i++) {
+        if (original[i] != '$' && original[i] != ' ' && original[i] != '"') {
+            variable[cvar++] = original[i];
+        }
+        else {
+            variable[cvar++] = '\0';
+            break;
+        }
     }
-
-    tmp = result = malloc(strlen(original) + (len_replacement - len_replaced) * counter + 1);
-
-    if (!result)
-        return NULL;
-
-    while (counter--) {
-        ptr = strstr(original, replaced);
-        len = ptr - original;
-        tmp = strncpy(tmp, original, len) + len;
-        tmp = strcpy(tmp, replacement) + len_replacement;
-        original += len + len_replaced;
+    char *value = getenv(variable);
+    if (value != NULL) {
+        for (int i = 0; i < strlen(value); i++) {
+            res[cres++] = value[i];
+        }
     }
-    strcpy(tmp, original);
-    return result;
+    for (int i = foundAt + strlen(variable) + 1; i < strlen(original); i++) {
+        res[cres++] = original[i];
+    }
+    res[cres++] = '\0';
+    strcpy(original, res);
+    return original;
+//    if (!replacement) {
+//        replacement = "";
+//    }
+//    char *result, *ptr, *tmp;
+//    int len_replaced = strlen(replaced), len_replacement = strlen(replacement);
+//    int len, counter;
+//    ptr = original;
+//    tmp = strstr(ptr, replaced);
+//    for (counter = 0; tmp; counter++) {
+//        ptr = tmp + len_replaced;
+//        tmp = strstr(ptr, replaced);
+//    }
+//
+//    tmp = result = malloc(strlen(original) + (len_replacement - len_replaced) * counter + 1);
+//
+//    if (!result)
+//        return NULL;
+//
+//    while (counter--) {
+//        ptr = strstr(original, replaced);
+//        len = ptr - original;
+//        tmp = strncpy(tmp, original, len) + len;
+//        tmp = strcpy(tmp, replacement) + len_replacement;
+//        original += len + len_replaced;
+//    }
+//    strcpy(tmp, original);
+//    return result;
 }
 void parse_input (char input[], char *parameters[]) {
     char *token, *copy, *delim = " ";
     int par_count = 0;
-    for (int i = 1; i < strlen(input); i++) {
-        if(strchr(input, '$') != NULL) {
-            input = replace(input, strchr(input, '$'),getenv(strchr(input, '$') + 1));
+
+    // after export update the input expression
+    replaceAll :
+    {
+        int flag = 0;
+        int i = 0;
+        while (i < strlen(input)) {
+            if (input[i] == '$') {
+                flag = 1;
+                break;
+            }
+            i++;
+        }
+        if (flag) {
+            input = replace(input, i);
+            printf("%s\n", input);
+            goto replaceAll;
         }
     }
     copy = strdup(input);
@@ -144,14 +187,22 @@ void evaluate_expression (char *parameters[]) {
 }
 
 void cd (char *parameters[]) {
+    char *path;
     if(parameters[1] == NULL || strcmp(parameters[1], "~") == 0) {
         chdir(getenv("HOME"));
+        return;
+    }
+    else if(*parameters[1] == '~') {
+        path = getenv("HOME");
+        parameters[1]++;
+        strcat(path, parameters[1]);
     }
     else {
-        if (chdir(parameters[1]) != 0) {
-            perror("cd");
-            usleep(200000);
-        }
+        path = parameters[1];
+    }
+    if (chdir(path) != 0) {
+        perror("cd");
+        usleep(200000);
     }
 }
 
@@ -167,6 +218,7 @@ void export (char command[]) {
 }
 
 void echo (char command[]) {
+    printf("%s\n", command);
     if (command[0] == '"' && command[strlen(command) - 1] == '"') {
         command[strlen(command) - 1] = '\0';
         command++;
@@ -203,9 +255,9 @@ void execute_command(char *parameters[], int background) {
         exit(1);
     }
     else if (child_id == 0) {
-//        for(int i = 0; parameters[i] != NULL; i++) {
-//            printf("%s\n", parameters[i]);
-//        }
+        for(int i = 0; parameters[i] != NULL; i++) {
+            printf("%s\n", parameters[i]);
+        }
         execvp(parameters[0], parameters);
 //        printf("Error\n");
         perror("execvp");
@@ -230,13 +282,16 @@ void shell () {
         input_type inputType;
         int background = 0;
         read_input(input);
+//        printf("input1%s\n", input);
         strcpy(input, remove_spaces(input));
+//        printf("input2%s\n", input);
         if (input[strlen(input) - 1] == '&') {
             background = 1;
             input[strlen(input) - 1] = '\0';
         }
         parse_input(remove_spaces(input), parameters);
-//        evaluate_expression(parameters);
+//        printf("input3%s\n", input);
+
 
         if (strcmp(parameters[0], "exit") == 0) {
             command_exit = 1;
