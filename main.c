@@ -18,7 +18,8 @@ FILE *log_file;
 // input type
 typedef enum {
     shell_builtin,
-    command
+    command,
+    exit_shell
 } input_type;
 
 // remove spaces at the start and end of the input
@@ -87,34 +88,8 @@ char *replace (char *original, int foundAt) {
     res[cres++] = '\0';
     strcpy(original, res);
     return original;
-//    if (!replacement) {
-//        replacement = "";
-//    }
-//    char *result, *ptr, *tmp;
-//    int len_replaced = strlen(replaced), len_replacement = strlen(replacement);
-//    int len, counter;
-//    ptr = original;
-//    tmp = strstr(ptr, replaced);
-//    for (counter = 0; tmp; counter++) {
-//        ptr = tmp + len_replaced;
-//        tmp = strstr(ptr, replaced);
-//    }
-//
-//    tmp = result = malloc(strlen(original) + (len_replacement - len_replaced) * counter + 1);
-//
-//    if (!result)
-//        return NULL;
-//
-//    while (counter--) {
-//        ptr = strstr(original, replaced);
-//        len = ptr - original;
-//        tmp = strncpy(tmp, original, len) + len;
-//        tmp = strcpy(tmp, replacement) + len_replacement;
-//        original += len + len_replaced;
-//    }
-//    strcpy(tmp, original);
-//    return result;
 }
+
 void parse_input (char input[], char *parameters[]) {
     char *token, *copy, *delim = " ";
     int par_count = 0;
@@ -152,20 +127,8 @@ void parse_input (char input[], char *parameters[]) {
             token = strtok(NULL, " ");
         }
     }
-//    int par_count = 0;
-//    char *token = strsep(&input, " \t\n\r\f\v");
-//    parameters[par_count++] = token;
-//    if(strcmp(token, "cd") == 0 || strcmp(token, "export") == 0 || strcmp(token, "echo") == 0) {
-//        parameters[par_count++] = input;
-//    }
-//    else {
-//        char *token2 = strsep(&input, " ");
-//        while (token2 != NULL && par_count < MAX_PAR) {
-//            parameters[par_count++] = token2;
-//            token2 = strsep(&input, " ");
-//        }
-//    }
 }
+
 void read_input (char input[]) {
     char curr[MAX_LENGTH];
     getcwd(curr, sizeof(curr));
@@ -173,17 +136,6 @@ void read_input (char input[]) {
     printf(COLOR_RESET "$ ");
     fgets(input, MAX_LENGTH, stdin);
     input[strcspn(input, "\n")] = '\0';
-}
-void evaluate_expression (char *parameters[]) {
-    for (int i = 1; parameters[i] != NULL; i++) {
-        char *ptr;
-        if((ptr = strchr(parameters[i], '$')) != NULL) {
-            //*ptr = '\n';
-            ptr++;
-//            printf("%d", getenv(parameters[i]));
-            parameters[i] = getenv(ptr);
-        }
-    }
 }
 
 void cd (char *parameters[]) {
@@ -200,14 +152,12 @@ void cd (char *parameters[]) {
         path[c++] = '\0';
         parameters[1]++;
         strcat(path, parameters[1]);
-        printf("%s\n", path);
         if (chdir(path) != 0) {
             perror("cd");
             usleep(200000);
         }
     }
     else {
-        printf("%s\n", parameters[1]);
         if (chdir(parameters[1]) != 0) {
             perror("cd");
             usleep(200000);
@@ -238,14 +188,6 @@ void echo (char command[]) {
 void execute_shell_bultin(char *parameters[]) {
     char *command = parameters[0];
     if (strcmp(command, "cd") == 0) {
-//        if (parameters[1] == NULL) {
-//            chdir(getenv("HOME"));
-//        }
-//        else {
-//            if (chdir(parameters[1]) == -1) {
-//                printf("No such file or directory\n");
-//            }
-//        }
         cd(parameters);
     }
     else if (strcmp(command, "echo") == 0) {
@@ -256,6 +198,7 @@ void execute_shell_bultin(char *parameters[]) {
     }
 
 }
+
 void execute_command(char *parameters[], int background) {
     pid_t child_id = fork();
     int status;
@@ -264,18 +207,16 @@ void execute_command(char *parameters[], int background) {
         exit(1);
     }
     else if (child_id == 0) {
-        for(int i = 0; parameters[i] != NULL; i++) {
-            printf("%s\n", parameters[i]);
+        if (background) {
+            printf("process: %d\n", getpid());
         }
         execvp(parameters[0], parameters);
-//        printf("Error\n");
         perror("execvp");
         usleep(20000);
         exit(1);
     }
     else {
         if (background) {
-            printf("process: %d\n", getpid());
             waitpid(child_id, &status, WNOHANG);
         }
         else {
@@ -291,19 +232,15 @@ void shell () {
         input_type inputType;
         int background = 0;
         read_input(input);
-//        printf("input1%s\n", input);
         strcpy(input, remove_spaces(input));
-//        printf("input2%s\n", input);
         if (input[strlen(input) - 1] == '&') {
             background = 1;
             input[strlen(input) - 1] = '\0';
         }
         parse_input(remove_spaces(input), parameters);
-//        printf("input3%s\n", input);
-
-
         if (strcmp(parameters[0], "exit") == 0) {
             command_exit = 1;
+            inputType = exit_shell;
         }
         else if (strcmp(parameters[0], "cd") == 0 || strcmp(parameters[0], "echo") == 0 ||
             strcmp(parameters[0], "export") == 0) {
@@ -318,11 +255,14 @@ void shell () {
                 break;
             case command:
                 execute_command(parameters, background);
+                break;
+            case exit_shell:
+                break;
         }
     } while (!command_exit);
 }
 
-int main() {  // finished
+int main() {
     fclose(fopen(LOG_FILE, "w"));
     signal(SIGCHLD, on_child_exit);
     setup_environment();
