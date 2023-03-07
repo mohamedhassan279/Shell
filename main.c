@@ -187,22 +187,31 @@ void evaluate_expression (char *parameters[]) {
 }
 
 void cd (char *parameters[]) {
-    char *path;
+    char path[MAX_LENGTH]; char *ptr; int c = 0;
     if(parameters[1] == NULL || strcmp(parameters[1], "~") == 0) {
         chdir(getenv("HOME"));
         return;
     }
     else if(*parameters[1] == '~') {
-        path = getenv("HOME");
+        ptr = getenv("HOME");
+        for (int i = 0; i < strlen(ptr); i++) {
+            path[c++] = ptr[i];
+        }
+        path[c++] = '\0';
         parameters[1]++;
         strcat(path, parameters[1]);
+        printf("%s\n", path);
+        if (chdir(path) != 0) {
+            perror("cd");
+            usleep(200000);
+        }
     }
     else {
-        path = parameters[1];
-    }
-    if (chdir(path) != 0) {
-        perror("cd");
-        usleep(200000);
+        printf("%s\n", parameters[1]);
+        if (chdir(parameters[1]) != 0) {
+            perror("cd");
+            usleep(200000);
+        }
     }
 }
 
