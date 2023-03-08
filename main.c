@@ -6,7 +6,7 @@
 #include <sys/wait.h>
 
 #define MAX_LENGTH 1000
-#define MAX_PAR 100
+#define MAX_PAR 256
 #define LOG_FILE "/home/mohamed/CLionProjects/OSlab1/log_file.txt"
 
 #define GREEN "\x1b[32m"
@@ -33,6 +33,7 @@ char *remove_spaces(char *input) {
     return input;
 }
 
+// the function to reap zombie child processes
 void reap_child_zombie() {
     while(1) {
         int status;
@@ -44,12 +45,16 @@ void reap_child_zombie() {
     }
 }
 
+// write to log file when a child process terminated
 void write_to_log_file(const char *msg) {
     log_file = fopen(LOG_FILE, "a");
     fprintf(log_file, "%s", msg);
     fclose(log_file);
 }
 
+/* when the child process terminates call reap_chhild_process function
+*  and write to log file
+*/
 void on_child_exit () {
     reap_child_zombie();
     write_to_log_file("Child process was terminated\n");
@@ -60,13 +65,17 @@ void setup_environment(){
     chdir(getenv("HOME"));
 }
 
-// function used to replace $x with the value of x
+// function used to replace for ex: $x with the value of x
 char *replace (char *original, int foundAt) {
     char variable[MAX_LENGTH]; int cvar = 0;
     char res[MAX_LENGTH]; int cres = 0;
+
+    // insert characters before $
     for (int i = 0; i < foundAt; i++) {
         res[cres++] = original[i];
     }
+
+    // get the variable name after $ which ends when it hits another $ or a space or "
     for (int i = foundAt + 1; i < strlen(original); i++) {
         if (original[i] != '$' && original[i] != ' ' && original[i] != '"') {
             variable[cvar++] = original[i];
@@ -77,11 +86,15 @@ char *replace (char *original, int foundAt) {
         }
     }
     char *value = getenv(variable);
+
+    // if the variable is found replace its name and place its value instead
     if (value != NULL) {
         for (int i = 0; i < strlen(value); i++) {
             res[cres++] = value[i];
         }
     }
+
+    // then complete the string with the remaining characters
     for (int i = foundAt + strlen(variable) + 1; i < strlen(original); i++) {
         res[cres++] = original[i];
     }
@@ -90,11 +103,17 @@ char *replace (char *original, int foundAt) {
     return original;
 }
 
+/*
+ *  parse the input string into command and arguments in parameters array
+ */
 void parse_input (char input[], char *parameters[]) {
     char *token, *copy, *delim = " ";
     int par_count = 0;
 
-    // after export update the input expression
+    /*
+     * in case of $ in the input we need to remove the name after it with its value
+     * we repeat this block until every $ in the input and the name after it with its value
+     */
     replaceAll :
     {
         int flag = 0;
@@ -108,10 +127,11 @@ void parse_input (char input[], char *parameters[]) {
         }
         if (flag) {
             input = replace(input, i);
-            printf("%s\n", input);
             goto replaceAll;
         }
     }
+
+    // extract command and arguments from elements
     copy = strdup(input);
     token = strtok(copy, delim);
     char *tmp = strdup(token);
@@ -129,16 +149,18 @@ void parse_input (char input[], char *parameters[]) {
     }
 }
 
+// a function to read the command
 void read_input (char input[]) {
     char curr[MAX_LENGTH];
     getcwd(curr, sizeof(curr));
-    usleep(20000);
+    usleep(2000);
     printf(GREEN "shell>>" COLOR_RESET ":" BLUE "%s", curr);
     printf(COLOR_RESET "$ ");
     fgets(input, MAX_LENGTH, stdin);
     input[strcspn(input, "\n")] = '\0';
 }
 
+// function to execute cd command
 void cd (char *parameters[]) {
     char path[MAX_LENGTH]; char *ptr; int c = 0;
     if(parameters[1] == NULL || strcmp(parameters[1], "~") == 0) {
@@ -166,6 +188,7 @@ void cd (char *parameters[]) {
     }
 }
 
+// function to execute export command
 void export (char command[]) {
     char *name, *value;
     name = strsep(&command, "=");
@@ -177,8 +200,8 @@ void export (char command[]) {
     setenv(name, value, 1);
 }
 
+// function to execute echo command
 void echo (char command[]) {
-    printf("%s\n", command);
     if (command[0] == '"' && command[strlen(command) - 1] == '"') {
         command[strlen(command) - 1] = '\0';
         command++;
@@ -186,6 +209,7 @@ void echo (char command[]) {
     printf("%s\n", command);
 }
 
+// function for builtin commands: cd, echo, export
 void execute_shell_bultin(char *parameters[]) {
     char *command = parameters[0];
     if (strcmp(command, "cd") == 0) {
@@ -197,9 +221,9 @@ void execute_shell_bultin(char *parameters[]) {
     else if (strcmp(command, "export") == 0) {
         export(parameters[1]);
     }
-
 }
 
+// function for executing system commands by forking a new child process
 void execute_command(char *parameters[], int background) {
     pid_t child_id = fork();
     int status;
@@ -226,6 +250,11 @@ void execute_command(char *parameters[], int background) {
         }
     }
 }
+
+/*
+ * the shell main function which loops taking the commands and invoking appropriate
+ * functions to execute them
+ */
 void shell () {
     int command_exit = 0;
     do {
@@ -264,6 +293,7 @@ void shell () {
     } while (!command_exit);
 }
 
+// initialize the program and reset the log file
 int main() {
     fclose(fopen(LOG_FILE, "w"));
     signal(SIGCHLD, on_child_exit);
