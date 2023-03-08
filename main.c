@@ -132,6 +132,7 @@ void parse_input (char input[], char *parameters[]) {
 void read_input (char input[]) {
     char curr[MAX_LENGTH];
     getcwd(curr, sizeof(curr));
+    usleep(20000);
     printf(GREEN "shell>>" COLOR_RESET ":" BLUE "%s", curr);
     printf(COLOR_RESET "$ ");
     fgets(input, MAX_LENGTH, stdin);
@@ -209,6 +210,7 @@ void execute_command(char *parameters[], int background) {
     else if (child_id == 0) {
         if (background) {
             printf("process: %d\n", getpid());
+            usleep(20000);
         }
         execvp(parameters[0], parameters);
         perror("execvp");
