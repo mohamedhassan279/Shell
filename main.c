@@ -7,7 +7,7 @@
 
 #define MAX_LENGTH 1000
 #define MAX_PAR 256
-#define LOG_FILE "/home/mohamed/CLionProjects/OSlab1/log_file.txt"
+#define LOG_FILE "log_file.txt"
 
 #define GREEN "\x1b[32m"
 #define BLUE "\x1b[34m"
@@ -237,8 +237,7 @@ void execute_command(char *parameters[], int background) {
             usleep(20000);
         }
         execvp(parameters[0], parameters);
-        perror("execvp");
-        usleep(20000);
+        printf("%s: command not found\n", parameters[0]);
         exit(1);
     }
     else {
@@ -291,6 +290,7 @@ void shell () {
                 break;
         }
     } while (!command_exit);
+    exit(0);
 }
 
 // initialize the program and reset the log file
