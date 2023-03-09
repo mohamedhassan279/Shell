@@ -7,7 +7,7 @@
 
 #define MAX_LENGTH 1000
 #define MAX_PAR 256
-#define LOG_FILE "log_file.txt"
+#define LOG_FILE "/home/mohamed/CLionProjects/OSlab1/log_file.txt"
 
 #define GREEN "\x1b[32m"
 #define BLUE "\x1b[34m"
